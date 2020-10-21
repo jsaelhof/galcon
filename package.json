@@ -1,0 +1,30 @@
+{
+  "name": "galcon",
+  "version": "1.0.0",
+  "description": "Some code attempts at a Galcon-inspired game",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "nodemon --exec babel-node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jsaelhof/galcon.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jsaelhof/galcon/issues"
+  },
+  "homepage": "https://github.com/jsaelhof/galcon#readme",
+  "devDependencies": {
+    "@babel/core": "^7.12.3",
+    "@babel/node": "^7.12.1",
+    "@babel/preset-env": "^7.12.1",
+    "nodemon": "^2.0.6"
+  },
+  "dependencies": {
+    "lodash": "^4.17.20",
+    "uuid": "^8.3.1"
+  }
+}
