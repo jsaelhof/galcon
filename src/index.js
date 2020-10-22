@@ -1,111 +1,101 @@
 import forEach from "lodash/forEach";
-import partition from "lodash/partition";
-import {grid} from "./grid/grid";
-import {generatePlanets} from "./generate-planets/generate-planets";
-import {move} from "./move/move";
-import keyBy from "lodash/keyBy";
-import {player} from "./player/player";
 import random from "lodash/random";
-import isNil from "lodash/isNil";
+import {grid} from "./grid/grid";
+import initStore from "./redux/store";
+import {generate} from "./redux/actions/planets/generate";
+import {incrementTurn} from "./redux/actions/turn/increment-turn";
+import {setOwner} from "./redux/actions/planets/set-owner";
+import {addPlayer} from "./redux/actions/players/add-player";
+import {addMove} from "./redux/actions/moves/add-move";
+import {produce} from "./redux/actions/planets/produce";
+import {removeCompletedMoves} from "./redux/actions/moves/remove-completed-moves";
+import {adjustShips} from "./redux/actions/planets/adjust-ships";
+import {setShips} from "./redux/actions/planets/set-ships";
 
 const X_MAX = 10;
 const Y_MAX = 20;
 const PRODUCTION_MAX = 8;
-const NUM_PLANETS = 6;
-
-let state = {
-  turn: 0,
-  planets: generatePlanets(NUM_PLANETS, PRODUCTION_MAX)([X_MAX, Y_MAX]),
-  moves: [],
-  players: keyBy([player("Bill"), player("Ted")], "id"),
-};
-
-const updatePlanet = (planetId, update) =>
-  (state.planets[planetId] = {
-    ...state.planets[planetId],
-    ...update,
-  });
-
-console.log(state.players);
+const NUM_PLANETS = 10;
 
 const processTurn = () => {
   // Increment the turn number
-  state.turn += 1;
-  console.log(`---- TURN ${state.turn} ----`);
+  store.dispatch(incrementTurn());
+  console.log(`---- TURN ${store.getState().turn} ----`);
 
-  // Partition moves to get those which are completed and those which aren't.
-  const [completedMoves, incompleteMoves] = partition(
-    state.moves,
-    ({arrive}) => arrive === state.turn,
-  );
+  // Handle completed moves
+  store
+    .getState()
+    .moves.filter(({arrive}) => arrive === store.getState().turn)
+    .forEach((move) => {
+      const fromPlanet = store.getState().planets[move.from];
+      const toPlanet = store.getState().planets[move.to];
 
-  // Update the moves to remove those that completed this turn.
-  state.moves = incompleteMoves;
+      if (fromPlanet.owner === toPlanet.owner) {
+        // Reinforcements
+        store.dispatch(adjustShips({planetId: toPlanet.id, ships: move.ships}));
 
-  // Handle Completed Moves
-  completedMoves.forEach((move) => {
-    console.log("MOVE", move);
-    const fromPlanet = state.planets[move.from];
-    const toPlanet = state.planets[move.to];
+        console.log(
+          `${ships} reinforcements from ${fromPlanet.name} arrived at ${toPlanet.name}`,
+        );
+        console.log(toPlanet);
+      } else {
+        let attackShipsRemaining = move.ships;
+        let defendShipsRemaining = toPlanet.ships;
 
-    if (fromPlanet.owner === toPlanet.owner) {
-      // Reinforcements
-      updatePlanet(toPlanet.id, {ships: toPlanet.ships + move.ships});
-      console.log(
-        `${ships} reinforcements from ${fromPlanet.name} arrived at ${toPlanet.name}`,
-      );
-      console.log(toPlanet);
-    } else {
-      //const win = !!random(1);
+        console.log(
+          "Battle",
+          fromPlanet.name,
+          toPlanet.name,
+          attackShipsRemaining,
+          "vs",
+          defendShipsRemaining,
+        );
 
-      let attackShipsRemaining = move.ships;
-      let defendShipsRemaining = toPlanet.ships;
+        while (attackShipsRemaining > 0 && defendShipsRemaining > 0) {
+          const attackerWins = !!random(1);
+          console.log(attackShipsRemaining, defendShipsRemaining, attackerWins);
 
-      console.log(
-        "Battle",
-        fromPlanet.name,
-        toPlanet.name,
-        attackShipsRemaining,
-        "vs",
-        defendShipsRemaining,
-      );
+          if (attackerWins) {
+            defendShipsRemaining--;
+          } else {
+            attackShipsRemaining--;
+          }
+        }
 
-      while (attackShipsRemaining > 0 && defendShipsRemaining > 0) {
-        const attackerWins = !!random(1);
-        console.log(attackShipsRemaining, defendShipsRemaining, attackerWins);
+        // Battle
+        console.log("Outcome", attackShipsRemaining, defendShipsRemaining);
 
-        if (attackerWins) {
-          defendShipsRemaining--;
+        if (attackShipsRemaining > 0) {
+          // Win - All toPlanet ships are destroyed and only extra ships are left.
+          store.dispatch(
+            setOwner({planetId: toPlanet.id, owner: fromPlanet.owner}),
+          );
+          store.dispatch(
+            setShips({planetId: toPlanet.id, ships: attackShipsRemaining}),
+          );
+          console.log(
+            `${store.getState().players[fromPlanet.owner].name} wins ${
+              toPlanet.name
+            }!`,
+          );
+          console.log(store.getState().planets[move.to]);
         } else {
-          attackShipsRemaining--;
+          // Lose - toPlanet ships is reduced by the number of ships in the move.
+          store.dispatch(
+            setShips({planetId: toPlanet.id, ships: defendShipsRemaining}),
+          );
+          console.log(
+            `${store.getState().players[toPlanet.owner].name} defends ${
+              toPlanet.name
+            }!`,
+          );
+          console.log(store.getState().planets[move.to]);
         }
       }
+    });
 
-      // Battle
-      console.log("Outcome", attackShipsRemaining, defendShipsRemaining);
-
-      if (attackShipsRemaining > 0) {
-        // Win - All toPlanet ships are destroyed and only extra ships are left.
-        updatePlanet(toPlanet.id, {
-          owner: fromPlanet.owner,
-          ships: attackShipsRemaining,
-        });
-        console.log(
-          `${state.players[fromPlanet.owner].name} wins ${toPlanet.name}!`,
-        );
-        console.log(state.planets[move.to]);
-      } else {
-        // Lose - toPlanet ships is reduced by the number of ships in the move.
-        updatePlanet(toPlanet.id, {
-          ships: defendShipsRemaining,
-        });
-        console.log(
-          `${state.players[toPlanet.owner].name} defends ${toPlanet.name}!`,
-        );
-        console.log(state.planets[move.to]);
-      }
-    }
-  });
+  // Update the moves to remove those that completed this turn.
+  store.dispatch(removeCompletedMoves({turn: store.getState().turn}));
 
   // After battles are resolved
 
@@ -114,39 +104,72 @@ const processTurn = () => {
   // TODO: Randomly increase or decrease production as original Galcon did?
 
   // Update the ship supply on each planet
-  forEach(state.planets, (planet) => {
-    // Only owned planets produce ships.
-    // Unowned planets just have an initial garrison of ships.
-    if (!isNil(planet.owner)) {
-      updatePlanet(planet.id, {ships: planet.ships + planet.production});
-    }
+  // TODO: Just one action to gte all planets to produce?
+  forEach(Object.keys(store.getState().planets), (planetId) => {
+    store.dispatch(produce({planetId}));
   });
 
-  forEach(state.planets, (planet) => console.log(planet.name, planet.ships));
+  forEach(store.getState().planets, (planet) =>
+    console.log(planet.name, planet.ships),
+  );
 };
 
-const planetIds = Object.keys(state.planets);
-const playerIds = Object.keys(state.players);
+const store = initStore();
 
-grid(state.planets, X_MAX, Y_MAX);
+// Generate the galaxy
+store.dispatch(
+  generate({
+    numPlanets: NUM_PLANETS,
+    productionMax: PRODUCTION_MAX,
+    xMax: X_MAX,
+    yMax: Y_MAX,
+  }),
+);
+
+// Create Players
+store.dispatch(addPlayer({name: "Bill"}));
+store.dispatch(addPlayer({name: "Ted"}));
 
 // Set the default owners of each plyeers home planet.
-updatePlanet(planetIds[0], {owner: playerIds[0]});
-updatePlanet(planetIds[1], {owner: playerIds[1]});
+// TODO: Maybe pass a list of playeers to generate planets and have it assign home planets?
+store.dispatch(
+  setOwner({
+    playerId: Object.keys(store.getState().players)[0],
+    planetId: Object.keys(store.getState().planets)[0],
+  }),
+);
+
+store.dispatch(
+  setOwner({
+    playerId: Object.keys(store.getState().players)[1],
+    planetId: Object.keys(store.getState().planets)[1],
+  }),
+);
+
+grid(store.getState().planets, X_MAX, Y_MAX);
 
 // Process the first turn
 processTurn();
 
-// TODO: A move must create the move object but also reduce the from planet's supply. Move this to a function.
-const attackShips = state.planets[planetIds[0]].ships;
-updatePlanet(planetIds[0], {ships: 0});
-state.moves.push(
-  move(
-    state.planets[planetIds[0]],
-    state.planets[planetIds[1]],
-    attackShips,
-    state.turn,
-  ),
+const planetA = store.getState().planets[
+  Object.keys(store.getState().planets)[0]
+];
+const planetB = store.getState().planets[
+  Object.keys(store.getState().planets)[1]
+];
+
+store.dispatch(
+  addMove({
+    fromId: planetA.id,
+    fromCoordinate: planetA.coordinate,
+    toId: planetB.id,
+    toCoordinate: planetB.coordinate,
+    ships: planetA.ships,
+    turn: store.getState().turn,
+    speed: 1,
+  }),
 );
+
+console.log(store.getState());
 
 setInterval(processTurn, 2000);
