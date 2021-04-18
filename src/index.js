@@ -41,6 +41,7 @@ const processTurn = () => {
       } else {
         let attackShipsRemaining = move.ships;
         let defendShipsRemaining = toPlanet.ships;
+        // TODO: Track how many ships each side lost so we can show it.
 
         console.log(
           "Battle",
@@ -165,6 +166,18 @@ store.dispatch(
     toId: planetB.id,
     toCoordinate: planetB.coordinate,
     ships: planetA.ships,
+    turn: store.getState().turn,
+    speed: 1,
+  }),
+);
+
+store.dispatch(
+  addMove({
+    fromId: planetB.id,
+    fromCoordinate: planetB.coordinate,
+    toId: planetA.id,
+    toCoordinate: planetA.coordinate,
+    ships: planetB.ships,
     turn: store.getState().turn,
     speed: 1,
   }),
